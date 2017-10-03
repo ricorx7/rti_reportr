@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'reportr_view.ui'
+# Form implementation generated from reading ui file 'frontend/reportr_view.ui'
 #
 # Created by: PyQt5 UI code generator 5.9
 #
@@ -15,7 +15,7 @@ class Ui_RoweTechReportR(object):
         self.centralWidget = QtWidgets.QWidget(RoweTechReportR)
         self.centralWidget.setObjectName("centralWidget")
         self.groupBox = QtWidgets.QGroupBox(self.centralWidget)
-        self.groupBox.setGeometry(QtCore.QRect(20, 20, 291, 221))
+        self.groupBox.setGeometry(QtCore.QRect(20, 250, 291, 221))
         self.groupBox.setObjectName("groupBox")
         self.selectFileButton = QtWidgets.QPushButton(self.groupBox)
         self.selectFileButton.setGeometry(QtCore.QRect(20, 30, 271, 32))
@@ -36,6 +36,12 @@ class Ui_RoweTechReportR(object):
         self.tab_4 = QtWidgets.QWidget()
         self.tab_4.setObjectName("tab_4")
         self.tabSubsystem.addTab(self.tab_4, "")
+        self.groupBox_2 = QtWidgets.QGroupBox(self.centralWidget)
+        self.groupBox_2.setGeometry(QtCore.QRect(20, 49, 291, 181))
+        self.groupBox_2.setObjectName("groupBox_2")
+        self.projectListWidget = QtWidgets.QListWidget(self.groupBox_2)
+        self.projectListWidget.setGeometry(QtCore.QRect(20, 40, 256, 91))
+        self.projectListWidget.setObjectName("projectListWidget")
         RoweTechReportR.setCentralWidget(self.centralWidget)
 
         self.retranslateUi(RoweTechReportR)
@@ -50,6 +56,7 @@ class Ui_RoweTechReportR(object):
         self.loadButton.setText(_translate("RoweTechReportR", "LOAD"))
         self.tabSubsystem.setTabText(self.tabSubsystem.indexOf(self.tab_3), _translate("RoweTechReportR", "Tab 1"))
         self.tabSubsystem.setTabText(self.tabSubsystem.indexOf(self.tab_4), _translate("RoweTechReportR", "Tab 2"))
+        self.groupBox_2.setTitle(_translate("RoweTechReportR", "Projects"))
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import sqlite3 as sqlite3
 from sqlite3 import Error
 import os as os
 
+
 class Project:
 
     def __init__(self, db_file):

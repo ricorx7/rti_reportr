@@ -18,7 +18,7 @@
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>20</y>
+      <y>250</y>
       <width>291</width>
       <height>221</height>
      </rect>
@@ -87,6 +87,29 @@
      <attribute name="title">
       <string>Tab 2</string>
      </attribute>
+    </widget>
+   </widget>
+   <widget class="QGroupBox" name="groupBox_2">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>49</y>
+      <width>291</width>
+      <height>181</height>
+     </rect>
+    </property>
+    <property name="title">
+     <string>Projects</string>
+    </property>
+    <widget class="QListWidget" name="projectListWidget">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>40</y>
+       <width>256</width>
+       <height>91</height>
+      </rect>
+     </property>
     </widget>
    </widget>
   </widget>
