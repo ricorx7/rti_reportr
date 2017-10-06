@@ -115,7 +115,7 @@ class ReportrVM(Ui_RoweTechReportR):
         self.projects.end_batch()
 
     def process_ensemble(self, sender, ens):
-        print(str(ens.EnsembleData.EnsembleNumber))
+        print("ReportR_vm.process_ensemble() Ens Num: " + str(ens.EnsembleData.EnsembleNumber))
         # Take decoded data and store it
 
         # Create an empty dataframe
