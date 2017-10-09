@@ -37,10 +37,10 @@ class ReportrVM(Ui_RoweTechReportR):
         # Create project h5py file
         # self.h5py_file = h5py.RtiH5py("project.h5py")
 
-        self.projects = RtiProjects(host='192.168.0.143',
-                                    port='32771',
+        self.projects = RtiProjects(host='localhost',
+                                    port='5432',
                                     dbname='rti',
-                                    user='rico',
+                                    user='test',
                                     pw='123456')
 
         for prj in self.projects.get_all_projects():

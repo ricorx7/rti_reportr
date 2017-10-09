@@ -15,3 +15,25 @@ Run the Application
 source backend\env\bin\activate
 python main.py
 ```
+
+### Install and Run Postgres OSX
+```bash
+brew install postgresql
+```
+
+```bash
+brew services start postgresql
+brew services stop postgresql
+```
+
+```bash
+createdb 'db_name'
+```
+The User name and Password is your osx username and password.
+
+#### Create New User
+```postgres-sql
+psql
+ 
+CREATE USER test_user WITH PASSWORD '123456';
+```
