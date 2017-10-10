@@ -30,6 +30,8 @@ class ReportrVM(Ui_RoweTechReportR):
         self.parent = parent
 
         self.project_name = 'Project1'
+        self.default_prj_name = ''
+        self.prj_file_path = ''
 
         # Create project file
         #self.project_file = Project("projects.sqlite")
@@ -64,6 +66,8 @@ class ReportrVM(Ui_RoweTechReportR):
             for file in fname:
                 self.selectedFileListView.addItem(file)
                 print(file)
+                self.default_prj_name = os.path.basename(file)
+                self.prj_file_path = file
 
     def read_files(self, give_warning=False):
         """
@@ -78,13 +82,13 @@ class ReportrVM(Ui_RoweTechReportR):
             display_txt = "Project Name already used.  Please give a new project name: "
 
         # Display a dialog box to get a project name
-        text, okPressed = QInputDialog.getText(self.parent, "Project Name", display_txt, QLineEdit.Normal, "")
+        text, okPressed = QInputDialog.getText(self.parent, "Project Name", display_txt, QLineEdit.Normal, self.default_prj_name)
         if okPressed and text != '':
             print(text)
             self.project_name = text
 
             # Get the index for the project in the DB
-            is_prj_added = self.projects.add_prj_sql(text)
+            is_prj_added = self.projects.add_prj_sql(text, self.prj_file_path)
 
             if is_prj_added:
                 # Read in the data and decode it
