@@ -63,7 +63,7 @@
      </property>
     </widget>
    </widget>
-   <widget class="QTabWidget" name="tabSubsystem">
+   <widget class="QTabWidget" name="tabReport">
     <property name="enabled">
      <bool>true</bool>
     </property>
@@ -71,19 +71,19 @@
      <rect>
       <x>320</x>
       <y>30</y>
-      <width>671</width>
+      <width>711</width>
       <height>811</height>
      </rect>
     </property>
     <property name="currentIndex">
      <number>0</number>
     </property>
-    <widget class="QWidget" name="tab_3">
+    <widget class="QWidget" name="tabOverall">
      <attribute name="title">
       <string>Tab 1</string>
      </attribute>
     </widget>
-    <widget class="QWidget" name="tab_4">
+    <widget class="QWidget" name="tabAmplitude">
      <attribute name="title">
       <string>Tab 2</string>
      </attribute>

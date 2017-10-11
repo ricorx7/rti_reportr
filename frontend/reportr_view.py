@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'frontend/reportr_view.ui'
+# Form implementation generated from reading ui file 'reportr_view.ui'
 #
 # Created by: PyQt5 UI code generator 5.9
 #
@@ -26,16 +26,16 @@ class Ui_RoweTechReportR(object):
         self.loadButton = QtWidgets.QPushButton(self.groupBox)
         self.loadButton.setGeometry(QtCore.QRect(180, 180, 113, 32))
         self.loadButton.setObjectName("loadButton")
-        self.tabSubsystem = QtWidgets.QTabWidget(self.centralWidget)
-        self.tabSubsystem.setEnabled(True)
-        self.tabSubsystem.setGeometry(QtCore.QRect(320, 30, 671, 811))
-        self.tabSubsystem.setObjectName("tabSubsystem")
-        self.tab_3 = QtWidgets.QWidget()
-        self.tab_3.setObjectName("tab_3")
-        self.tabSubsystem.addTab(self.tab_3, "")
-        self.tab_4 = QtWidgets.QWidget()
-        self.tab_4.setObjectName("tab_4")
-        self.tabSubsystem.addTab(self.tab_4, "")
+        self.tabReport = QtWidgets.QTabWidget(self.centralWidget)
+        self.tabReport.setEnabled(True)
+        self.tabReport.setGeometry(QtCore.QRect(320, 30, 711, 811))
+        self.tabReport.setObjectName("tabReport")
+        self.tabOverall = QtWidgets.QWidget()
+        self.tabOverall.setObjectName("tabOverall")
+        self.tabReport.addTab(self.tabOverall, "")
+        self.tabAmplitude = QtWidgets.QWidget()
+        self.tabAmplitude.setObjectName("tabAmplitude")
+        self.tabReport.addTab(self.tabAmplitude, "")
         self.groupBox_2 = QtWidgets.QGroupBox(self.centralWidget)
         self.groupBox_2.setGeometry(QtCore.QRect(20, 49, 291, 181))
         self.groupBox_2.setObjectName("groupBox_2")
@@ -45,7 +45,7 @@ class Ui_RoweTechReportR(object):
         RoweTechReportR.setCentralWidget(self.centralWidget)
 
         self.retranslateUi(RoweTechReportR)
-        self.tabSubsystem.setCurrentIndex(0)
+        self.tabReport.setCurrentIndex(0)
         QtCore.QMetaObject.connectSlotsByName(RoweTechReportR)
 
     def retranslateUi(self, RoweTechReportR):
@@ -54,8 +54,8 @@ class Ui_RoweTechReportR(object):
         self.groupBox.setTitle(_translate("RoweTechReportR", "File"))
         self.selectFileButton.setText(_translate("RoweTechReportR", "Select File"))
         self.loadButton.setText(_translate("RoweTechReportR", "LOAD"))
-        self.tabSubsystem.setTabText(self.tabSubsystem.indexOf(self.tab_3), _translate("RoweTechReportR", "Tab 1"))
-        self.tabSubsystem.setTabText(self.tabSubsystem.indexOf(self.tab_4), _translate("RoweTechReportR", "Tab 2"))
+        self.tabReport.setTabText(self.tabReport.indexOf(self.tabOverall), _translate("RoweTechReportR", "Tab 1"))
+        self.tabReport.setTabText(self.tabReport.indexOf(self.tabAmplitude), _translate("RoweTechReportR", "Tab 2"))
         self.groupBox_2.setTitle(_translate("RoweTechReportR", "Projects"))
 
 

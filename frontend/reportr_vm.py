@@ -7,12 +7,14 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from .project_sqlite import Project
 
+from .overall_tab_vm import OverallTabVM
 
 
 from rti_python.Writer.rti_sql import rti_sql
 from rti_python.Writer.rti_projects import RtiProjects
 
 import pandas as pd
+
 
 class ReportrVM(Ui_RoweTechReportR):
     """
@@ -23,7 +25,7 @@ class ReportrVM(Ui_RoweTechReportR):
         # Place the Import here because this import is also done within rti_python
         # which is causing it to overlap
         import rti_python.Codecs.AdcpCodec as codec
-        import rti_python.Writer.rti_h5py as h5py
+        # import rti_python.Writer.rti_h5py as h5py
 
         Ui_RoweTechReportR.__init__(self)
         self.setupUi(parent)
@@ -34,7 +36,7 @@ class ReportrVM(Ui_RoweTechReportR):
         self.prj_file_path = ''
 
         # Create project file
-        #self.project_file = Project("projects.sqlite")
+        # self.project_file = Project("projects.sqlite")
 
         # Create project h5py file
         # self.h5py_file = h5py.RtiH5py("project.h5py")
@@ -54,6 +56,9 @@ class ReportrVM(Ui_RoweTechReportR):
 
         self.selectFileButton.clicked.connect(self.select_file_dialog)
         self.loadButton.clicked.connect(self.read_files)
+        self.projectListWidget.itemClicked.connect(self.set_tabs)
+
+        self.tabReport.clear()
 
     def select_file_dialog(self):
         # Clear the current selected items
@@ -134,10 +139,15 @@ class ReportrVM(Ui_RoweTechReportR):
         # Add the ensemble to the project
         self.projects.add_ensemble(ens)
 
+    def set_tabs(self, selected_item):
+        # Clear the current tabs
+        self.tabReport.clear()
 
+        print(selected_item.text())
+        # Get the project index based off the selected project
+        idx = self.projects.check_project_exist(selected_item.text())
 
-
-
-
-
+        # Overall Report tab
+        overallVM = OverallTabVM(self.tabReport, idx, selected_item.text(), self.projects.sql_conn_string)
+        self.tabReport.addTab(overallVM, "Summary")
 
