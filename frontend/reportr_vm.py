@@ -7,8 +7,8 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from .project_sqlite import Project
 
-from .overall_tab_vm import OverallTabVM
-
+from .summary_tab_vm import SummaryTabVM
+from .location_tab_vm import LocationTabVM
 
 from rti_python.Writer.rti_sql import rti_sql
 from rti_python.Writer.rti_projects import RtiProjects
@@ -147,7 +147,11 @@ class ReportrVM(Ui_RoweTechReportR):
         # Get the project index based off the selected project
         idx = self.projects.check_project_exist(selected_item.text())
 
-        # Overall Report tab
-        overallVM = OverallTabVM(self.tabReport, idx, selected_item.text(), self.projects.sql_conn_string)
-        self.tabReport.addTab(overallVM, "Summary")
+        # Summary tab
+        summary_vm = SummaryTabVM(self.tabReport, idx, selected_item.text(), self.projects.sql_conn_string)
+        self.tabReport.addTab(summary_vm, "Summary")
+
+        # Location tab
+        location_vm = LocationTabVM(self.tabReport, idx, selected_item.text(), self.projects.sql_conn_string)
+        self.tabReport.addTab(location_vm, "Location")
 

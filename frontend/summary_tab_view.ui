@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>Overall_Tab</class>
- <widget class="QWidget" name="Overall_Tab">
+ <class>Summary_Tab</class>
+ <widget class="QWidget" name="Summary_Tab">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -16,8 +16,8 @@
   <widget class="QLabel" name="projectLabel">
    <property name="geometry">
     <rect>
-     <x>110</x>
-     <y>90</y>
+     <x>10</x>
+     <y>30</y>
      <width>301</width>
      <height>31</height>
     </rect>
@@ -30,8 +30,8 @@
    <property name="geometry">
     <rect>
      <x>10</x>
-     <y>140</y>
-     <width>741</width>
+     <y>70</y>
+     <width>601</width>
      <height>451</height>
     </rect>
    </property>

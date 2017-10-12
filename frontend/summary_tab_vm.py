@@ -1,15 +1,15 @@
 from PyQt5.QtWidgets import QWidget
-from .overall_tab_view import Ui_Overall_Tab
+from .summary_tab_view import Ui_Summary_Tab
 from rti_python.Writer.rti_projects import RtiProjects
 from rti_python.Writer.rti_sql import rti_sql
 
 import pandas as pd
 from tabulate import tabulate
 
-class OverallTabVM(Ui_Overall_Tab, QWidget):
+class SummaryTabVM(Ui_Summary_Tab, QWidget):
 
     def __init__(self, parent, project_idx, project_name, sql_conn_str):
-        Ui_Overall_Tab.__init__(self)
+        Ui_Summary_Tab.__init__(self)
         QWidget.__init__(self, parent)
         self.setupUi(self)
         self.parent = parent
@@ -29,9 +29,6 @@ class OverallTabVM(Ui_Overall_Tab, QWidget):
         self.firmware = ""
 
         self.get_project_info(project_idx)
-
-
-
 
     def get_project_info(self, idx):
 
