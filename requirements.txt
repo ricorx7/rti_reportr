@@ -2,4 +2,3 @@ pyqt5
 psycopg2
 tabulate
 pandas
-gmplot

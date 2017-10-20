@@ -16,7 +16,7 @@ class Ui_Location_Tab(object):
         self.projectLabel.setGeometry(QtCore.QRect(10, 30, 301, 31))
         self.projectLabel.setObjectName("projectLabel")
         self.summaryTextEdit = QtWidgets.QTextEdit(Location_Tab)
-        self.summaryTextEdit.setGeometry(QtCore.QRect(10, 70, 601, 451))
+        self.summaryTextEdit.setGeometry(QtCore.QRect(0, 70, 761, 131))
         font = QtGui.QFont()
         font.setFamily("Courier New")
         self.summaryTextEdit.setFont(font)
@@ -24,6 +24,9 @@ class Ui_Location_Tab(object):
         self.summaryTextEdit.setReadOnly(True)
         self.summaryTextEdit.setTabStopWidth(86)
         self.summaryTextEdit.setObjectName("summaryTextEdit")
+        self.htmlWidget = QtWidgets.QWidget(Location_Tab)
+        self.htmlWidget.setGeometry(QtCore.QRect(0, 218, 760, 600))
+        self.htmlWidget.setObjectName("htmlWidget")
 
         self.retranslateUi(Location_Tab)
         QtCore.QMetaObject.connectSlotsByName(Location_Tab)

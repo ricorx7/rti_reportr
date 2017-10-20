@@ -132,3 +132,6 @@ projects.sqlite
 
 # mypy
 .mypy_cache/
+
+# HTML folder
+/html

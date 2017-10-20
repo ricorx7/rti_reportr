@@ -1,3 +1,6 @@
 [submodule "rti_python"]
 	path = rti_python
 	url = https://github.com/ricorx7/rti_python
+[submodule "gmplot"]
+	path = gmplot
+	url = https://github.com:ricorx/ricorx7/gmplot
