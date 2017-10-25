@@ -9,6 +9,7 @@ from .project_sqlite import Project
 
 from .summary_tab_vm import SummaryTabVM
 from .location_tab_vm import LocationTabVM
+from .quiver_tab_vm import QuiverTabVM
 
 from rti_python.Writer.rti_sql import rti_sql
 from rti_python.Writer.rti_projects import RtiProjects
@@ -154,4 +155,8 @@ class ReportrVM(Ui_RoweTechReportR):
         # Location tab
         location_vm = LocationTabVM(self.tabReport, idx, selected_item.text(), self.projects.sql_conn_string)
         self.tabReport.addTab(location_vm, "Location")
+
+        # Location tab
+        quiver_vm = QuiverTabVM(self.tabReport, idx, selected_item.text(), self.projects.sql_conn_string)
+        self.tabReport.addTab(quiver_vm, "Velocities")
 
