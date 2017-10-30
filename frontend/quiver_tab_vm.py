@@ -346,11 +346,12 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
 
         return xs, ys
 
-    def get_project_velocity(self, idx, beam):
+    def get_project_velocity(self, idx, beam, remove_ship_speed=True):
         """
         Get the earth velocity for the project info from the database.
         :param idx: Project index.
         :param beam: Beam number.
+        :param remove_ship_speed: Remove the ship speed from the velocities.
         :return: Earth velocity data.
         """
 
@@ -363,6 +364,32 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
 
         # Get ensemble earth velocity data
         earth_vel = sql.get_earth_vel_data(idx, beam)
+
+        if remove_ship_speed:
+            # Get bottom track velocity
+            bt_vel = sql.get_bottom_track_vel(idx)
+
+            num_bins = bt_vel['numbins'][0]
+
+            # Mark all bad data 0 so when added, it will not increase above 88.888
+            bt_vel = bt_vel.replace([88.888], 0.0)
+            earth_vel = earth_vel.replace([88.888], 0.0)
+
+            for bin_loc in range(num_bins):
+                bin_str = 'bin' + str(bin_loc)
+
+                # Add bottom track velocity to earth velocity to remove the ship speed
+                if beam == 0:
+                    earth_vel[bin_str] += bt_vel['Earth0']
+                elif beam == 1:
+                    earth_vel[bin_str] += bt_vel['Earth1']
+                elif beam == 2:
+                    earth_vel[bin_str] += bt_vel['Earth2']
+                elif beam == 3:
+                    earth_vel[bin_str] += bt_vel['Earth3']
+
+        self.summaryTextEdit.append(str(bt_vel))
+        self.summaryTextEdit.append(str(earth_vel.iloc[:, :num_bins+2]))
 
         sql.close()
 
