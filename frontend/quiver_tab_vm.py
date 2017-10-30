@@ -7,9 +7,12 @@ from PyQt5 import QtWebEngineWidgets, QtCore
 
 import numpy as np
 import pandas as pd
+import math
 
 from bokeh.layouts import gridplot
 from bokeh.plotting import figure, show, save, output_file
+from bokeh.models import ColumnDataSource, HoverTool, LinearColorMapper, BasicTicker, PrintfTickFormatter, ColorBar
+from bokeh.transform import transform
 
 from .quiver_tab_view import Ui_Quiver_Tab
 
@@ -35,8 +38,11 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         cur_folder = os.path.join(cur_folder, 'vector_' + project_name + '.html')
 
         adcp = self.get_adcp_info(project_idx)
-        earth_vel_east_df = self.get_project_velocity(project_idx, 0)
+        earth_vel_east_df = self.get_project_velocity(project_idx, 0)       # Each row is an ensemble
         earth_vel_north_df = self.get_project_velocity(project_idx, 1)
+
+        #print(earth_vel_east_df.head())
+        #print(earth_vel_north_df.head())
 
         # Create the plot
         self.create_plot(adcp, earth_vel_east_df, earth_vel_north_df)
@@ -48,45 +54,122 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         self.htmlWidget.load(QtCore.QUrl().fromLocalFile(cur_folder))
 
     def create_plot(self, adcp, earth_vel_east_df, earth_vel_north_df):
-        # Get the number of rows in the df
+        # BAD VELOCITY
+        BAD_VEL = 88.888
+
+        # Scale factor to allow the quivers to fit on the screen
+        SCALE_FACTOR = 4
+
+        # Get the number of bins in the df
+        # Get the number of ensembles in the df
         num_bins = adcp['numbins']
+        num_ens = len(earth_vel_east_df.index)
 
-        xx = np.linspace(0, num_bins, 100)
-        yy = np.linspace(0, num_bins, 100)
+        xx = np.linspace(0, num_ens, num=num_ens)
+        yy = np.linspace(0, num_ens, num=num_ens)
 
-        for bin_loc in range(0, num_bins):
-            bin_str = 'bin'+str(bin_loc)
+        x0_ens = []
+        y0_ens = []
+        x1_ens = []
+        y1_ens = []
+        length_vals = []
+        speed_vals = []
 
-            print(xx[bin_loc])
-            print("north: ", earth_vel_north_df.iloc[bin_loc][bin_str])
+        df_mag = pd.DataFrame()
 
-            xx[bin_loc] = earth_vel_east_df.iloc[bin_loc][bin_str]
-            yy[bin_loc] = earth_vel_north_df.iloc[bin_loc][bin_str]
+        for ens_loc in range(num_ens):
 
+            mag_vals = []
+            dir_vals = []
+
+            for bin_loc in range(num_bins):
+                bin_str = 'bin'+str(bin_loc)
+
+                u = 0.0
+                v = 0.0
+                if earth_vel_east_df.iloc[ens_loc][bin_str] != BAD_VEL and earth_vel_north_df.iloc[ens_loc][bin_str] != BAD_VEL:
+                    u = earth_vel_east_df.iloc[ens_loc][bin_str]
+                    v = earth_vel_north_df.iloc[ens_loc][bin_str]
+
+                mag = math.sqrt(u*u + v*v)
+                mag_vals.append(mag)
+                speed_vals.append(mag)
+                dir = math.degrees(math.atan2(u, v))
+                if dir < 0:
+                    dir = 360.0 + dir
+                dir_vals.append(dir)
+
+                length_val = mag / SCALE_FACTOR             # Scale the length to fit better on the screen
+                length_vals.append(length_val)
+
+                x1_val = ens_loc + length_val * np.cos(dir)
+                y1_val = bin_loc + length_val * np.sin(dir)
+
+                x0_ens.append(ens_loc)          # X = ensemble
+                y0_ens.append(bin_loc)          # Y = bin
+                x1_ens.append(x1_val)           # x1 = length and angle
+                y1_ens.append(y1_val)           # y1 = length and angle
+
+            # Store the column for the speed values
+            df_mag[str(ens_loc)] = mag_vals
+
+        length = np.asarray(length_vals)
+        speed = np.asarray(speed_vals)
+
+        """
         Y, X = np.meshgrid(xx, yy)
-        U = -1 - X ** 2 + Y
-        V = 1 + X - Y ** 2
+        #U = -1 - X ** 2 + Y
+        #V = 1 + X - Y ** 2
+        U = X
+        V = Y
         speed = np.sqrt(U * U + V * V)
         theta = np.arctan(V / U)
-
         x0 = X[::2, ::2].flatten()
         y0 = Y[::2, ::2].flatten()
         length = speed[::2, ::2].flatten() / 40
         angle = theta[::2, ::2].flatten()
         x1 = x0 + length * np.cos(angle)
         y1 = y0 + length * np.sin(angle)
-
         xs, ys = self.streamlines(xx, yy, U.T, V.T, density=2)
+        """
 
-        cm = np.array(["#C7E9B4", "#7FCDBB", "#41B6C4", "#1D91C0", "#225EA8", "#0C2C84"])
+        #cm = np.array(["#75968f", "#a5bab7", "#c9d9d3", "#e2e2e2", "#dfccce", "#ddb7b1", "#cc7878", "#933b41", "#550b1d"])  # Green / White / Red
+        #cm = np.array(["#C7E9B4", "#7FCDBB", "#41B6C4", "#1D91C0", "#225EA8", "#0C2C84"])      #  Green / Blue
+        #cm = np.array(['#084594', '#2171b5', '#4292c6', '#6baed6', '#9ecae1', '#c6dbef', '#deebf7', '#f7fbff'])  # Blue to white
+        cm = np.array(['#f7fbff', '#deebf7', '#c6dbef', '#6baed6', '#9ecae1', '#4292c6', '#2171b5', '#084594'])  # White to Blue
         ix = ((length - length.min()) / (length.max() - length.min()) * 5).astype('int')
         colors = cm[ix]
+        # this is the colormap from the original NYTimes plot
+        mapper = LinearColorMapper(palette=cm, low=speed.min(), high=speed.max())
+        color_bar = ColorBar(color_mapper=mapper, major_label_text_font_size="5pt",
+                             ticker=BasicTicker(desired_num_ticks=len(cm)),
+                             label_standoff=6, border_line_color=None, location=(0, 0))
 
-        p1 = figure(x_range=(0, num_bins), y_range=(0, num_bins))
-        p1.segment(x0, y0, x1, y1, color=colors, line_width=2)
 
-        p2 = figure(x_range=p1.x_range, y_range=p1.y_range)
-        p2.multi_line(xs, ys, color="#ee6666", line_width=2, line_alpha=0.8)
+        TOOLS = "hover,save,pan,box_zoom,reset,wheel_zoom"
+
+        p1 = figure(x_range=(0, num_ens), y_range=(0, num_bins), tools=TOOLS)
+        p1.segment(x0_ens, y0_ens, x1_ens, y1_ens, color=colors, line_width=2)
+        #p1.add_layout(color_bar, 'right')
+
+        #p3 = figure(x_range=p1.x_range, y_range=p1.y_range)
+        #p3.multi_line(xs, ys, color="#ee6666", line_width=2, line_alpha=0.8)
+
+        speed_df = pd.DataFrame()
+        speed_df['speed'] = speed_vals
+        speed_df['ens'] = x0_ens
+        speed_df['bin'] = y0_ens
+        source = ColumnDataSource(speed_df)
+
+        p2 = figure(x_range=p1.x_range, y_range=p1.y_range, tools=TOOLS, toolbar_location='left')
+        p2.rect(x='ens', y='bin', width=1, height=1, source=source, fill_color=transform('speed', mapper), line_color=None)
+        p2.add_layout(color_bar, 'right')
+        p2.select_one(HoverTool).tooltips = [
+            ("index", "$index"),
+            ("(x,y)", "($x, $y)"),
+            ("fill color", "$color[hex, swatch]:fill_color"),
+            ('speed', '@speed'),
+        ]
 
         file_name = 'vector_' + self.project_name + '.html'
         file_name = os.path.join('html', file_name)
@@ -94,7 +177,8 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         output_file(file_name, title="vector.py example")
 
         # show(gridplot([[p1, p2]], plot_width=400, plot_height=400))  # open a browser
-        save(gridplot([[p1, p2]], plot_width=320, plot_height=530))  # Just save to file
+        #save(gridplot([[p1, p2]], plot_width=320, plot_height=530))  # Just save to file
+        save(gridplot([[p1, p2]], plot_width=640, plot_height=510))  # Just save to file
 
     def streamlines(self, x, y, u, v, density=1):
         ''' Return streamlines of a vector flow.
