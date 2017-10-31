@@ -37,15 +37,19 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         cur_folder = os.path.join(cur_folder, 'html')           # html folder
         cur_folder = os.path.join(cur_folder, 'vector_' + project_name + '.html')
 
+        # Get data from DB
         adcp = self.get_adcp_info(project_idx)
         earth_vel_east_df = self.get_project_velocity(project_idx, 0)       # Each row is an ensemble
         earth_vel_north_df = self.get_project_velocity(project_idx, 1)
+
+        # Mark bad below bottom
+        #earth_vel_east_df, earth_vel_north_df = self.mark_bad_below_bottom(project_idx, earth_vel_east_df, earth_vel_north_df)
 
         #print(earth_vel_east_df.head())
         #print(earth_vel_north_df.head())
 
         # Create the plot
-        self.create_plot(adcp, earth_vel_east_df, earth_vel_north_df)
+        self.create_plot(adcp, earth_vel_east_df, earth_vel_north_df, max_vel=1.0)
 
         # Upgrade it to a Web engine
         # Display the plot
@@ -53,7 +57,7 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         self.htmlWidget.resize(700, 565)
         self.htmlWidget.load(QtCore.QUrl().fromLocalFile(cur_folder))
 
-    def create_plot(self, adcp, earth_vel_east_df, earth_vel_north_df):
+    def create_plot(self, adcp, earth_vel_east_df, earth_vel_north_df, max_vel=80.0):
         # BAD VELOCITY
         BAD_VEL = 88.888
 
@@ -65,9 +69,6 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         num_bins = adcp['numbins']
         num_ens = len(earth_vel_east_df.index)
 
-        xx = np.linspace(0, num_ens, num=num_ens)
-        yy = np.linspace(0, num_ens, num=num_ens)
-
         x0_ens = []
         y0_ens = []
         x1_ens = []
@@ -75,44 +76,53 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         length_vals = []
         speed_vals = []
 
-        df_mag = pd.DataFrame()
+        earth_vel_east_df = earth_vel_east_df.drop(['ensnum', 'beam'], axis=1)      # Ensemble number and beam column not needed
+        earth_vel_north_df = earth_vel_north_df.drop(['ensnum', 'beam'], axis=1)    # Ensemble number and beam column not needed
+        earth_vel_east_df = earth_vel_east_df.replace([None], 0.0)                  # Remove None so we can square
+        earth_vel_north_df = earth_vel_north_df.replace([None], 0.0)                # Remove None so we can square
+        earth_vel_east_df[earth_vel_east_df >= max_vel] = 0.0                       # Values marked bad set to 0
+        earth_vel_north_df[earth_vel_north_df >= max_vel] = 0.0                     # Values marked bad set to 0
 
-        for ens_loc in range(num_ens):
+        # Calculate the magnitude
+        df_mag = pd.DataFrame(np.sqrt(np.square(earth_vel_east_df)+np.square(earth_vel_north_df)))
+        df_mag[df_mag >= max_vel] = 0.0  # Values marked bad set to 0
+        #df_mag[(~(np.abs(df_mag-df_mag.mean()) > (1*df_mag.std())))] = 0.0
+        #df_mag[(np.abs(df_mag-df_mag.mean())<=(5.0*df_mag.std()))] = 0.0
+        #print(df_mag)
 
-            mag_vals = []
-            dir_vals = []
+        # Calculate the direction
+        df_dir = pd.DataFrame(np.degrees(np.arctan2(earth_vel_east_df, earth_vel_north_df)))
+        #print(df_dir)
+
+        # Create the quivers
+        for index, row in df_mag.iterrows():
 
             for bin_loc in range(num_bins):
                 bin_str = 'bin'+str(bin_loc)
 
-                u = 0.0
-                v = 0.0
-                if earth_vel_east_df.iloc[ens_loc][bin_str] != BAD_VEL and earth_vel_north_df.iloc[ens_loc][bin_str] != BAD_VEL:
-                    u = earth_vel_east_df.iloc[ens_loc][bin_str]
-                    v = earth_vel_north_df.iloc[ens_loc][bin_str]
-
-                mag = math.sqrt(u*u + v*v)
-                mag_vals.append(mag)
+                ens_loc = index
+                mag = row[bin_str]
+                vel_dir = df_dir.iloc[ens_loc][bin_str]
                 speed_vals.append(mag)
-                dir = math.degrees(math.atan2(u, v))
-                if dir < 0:
-                    dir = 360.0 + dir
-                dir_vals.append(dir)
 
-                length_val = mag / SCALE_FACTOR             # Scale the length to fit better on the screen
+                # Correct direction
+                if vel_dir < 0:
+                    vel_dir = 360.0 + vel_dir
+
+                # Apply scale factor to length
+                length_val = mag / SCALE_FACTOR  # Scale the length to fit better on the screen
                 length_vals.append(length_val)
 
-                x1_val = ens_loc + length_val * np.cos(dir)
-                y1_val = bin_loc + length_val * np.sin(dir)
+                # Generate angle for water direction
+                x1_val = ens_loc + length_val * np.cos(vel_dir)
+                y1_val = bin_loc + length_val * np.sin(vel_dir)
 
-                x0_ens.append(ens_loc)          # X = ensemble
-                y0_ens.append(bin_loc)          # Y = bin
-                x1_ens.append(x1_val)           # x1 = length and angle
-                y1_ens.append(y1_val)           # y1 = length and angle
+                x0_ens.append(ens_loc)  # X = ensemble
+                y0_ens.append(bin_loc)  # Y = bin
+                x1_ens.append(x1_val)   # x1 = length and angle
+                y1_ens.append(y1_val)   # y1 = length and angle
 
-            # Store the column for the speed values
-            df_mag[str(ens_loc)] = mag_vals
-
+        # Turn the 2D array to 1D
         length = np.asarray(length_vals)
         speed = np.asarray(speed_vals)
 
@@ -136,7 +146,8 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         #cm = np.array(["#75968f", "#a5bab7", "#c9d9d3", "#e2e2e2", "#dfccce", "#ddb7b1", "#cc7878", "#933b41", "#550b1d"])  # Green / White / Red
         #cm = np.array(["#C7E9B4", "#7FCDBB", "#41B6C4", "#1D91C0", "#225EA8", "#0C2C84"])      #  Green / Blue
         #cm = np.array(['#084594', '#2171b5', '#4292c6', '#6baed6', '#9ecae1', '#c6dbef', '#deebf7', '#f7fbff'])  # Blue to white
-        cm = np.array(['#f7fbff', '#deebf7', '#c6dbef', '#6baed6', '#9ecae1', '#4292c6', '#2171b5', '#084594'])  # White to Blue
+        cm = np.array(['#000000', '#084594', '#2171b5', '#4292c6', '#6baed6', '#9ecae1', '#c6dbef', '#deebf7', '#f7fbff'])  # Black to Blue to white
+        #cm = np.array(['#f7fbff', '#deebf7', '#c6dbef', '#6baed6', '#9ecae1', '#4292c6', '#2171b5', '#084594'])  # White to Blue
         ix = ((length - length.min()) / (length.max() - length.min()) * 5).astype('int')
         colors = cm[ix]
         # this is the colormap from the original NYTimes plot
@@ -148,8 +159,10 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
 
         TOOLS = "hover,save,pan,box_zoom,reset,wheel_zoom"
 
-        p1 = figure(x_range=(0, num_ens), y_range=(0, num_bins), tools=TOOLS)
+        p1 = figure(x_range=(0, num_ens), y_range=(0, num_bins), tools=TOOLS, title="Water Profile - Magnitude and Direction")
         p1.segment(x0_ens, y0_ens, x1_ens, y1_ens, color=colors, line_width=2)
+        p1.xaxis.axis_label = "Ensembles"
+        p1.yaxis.axis_label = 'Bins'
         #p1.add_layout(color_bar, 'right')
 
         #p3 = figure(x_range=p1.x_range, y_range=p1.y_range)
@@ -161,8 +174,10 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         speed_df['bin'] = y0_ens
         source = ColumnDataSource(speed_df)
 
-        p2 = figure(x_range=p1.x_range, y_range=p1.y_range, tools=TOOLS, toolbar_location='left')
+        p2 = figure(x_range=p1.x_range, y_range=p1.y_range, tools=TOOLS, toolbar_location='left', title="Water Profile - Water Velocity")
         p2.rect(x='ens', y='bin', width=1, height=1, source=source, fill_color=transform('speed', mapper), line_color=None)
+        p2.xaxis.axis_label = "Ensembles"
+        p2.yaxis.axis_label = 'Bins'
         p2.add_layout(color_bar, 'right')
         p2.select_one(HoverTool).tooltips = [
             ("index", "$index"),
@@ -372,8 +387,8 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
             num_bins = bt_vel['numbins'][0]
 
             # Mark all bad data 0 so when added, it will not increase above 88.888
-            bt_vel = bt_vel.replace([88.888], 0.0)
-            earth_vel = earth_vel.replace([88.888], 0.0)
+            #bt_vel = bt_vel.replace([88.888], 0.0)
+            #earth_vel = earth_vel.replace([88.888], 0.0)
 
             for bin_loc in range(num_bins):
                 bin_str = 'bin' + str(bin_loc)
@@ -415,3 +430,54 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         sql.close()
 
         return info
+
+    def mark_bad_below_bottom(self, idx, east_vel, north_vel):
+        # Make connection
+        try:
+            sql = rti_sql(self.sql_conn_str)
+        except Exception as e:
+            print("Unable to connect to the database: ", e)
+            return
+
+        # Get ensemble earth velocity data
+        ranges = sql.get_bottom_track_range(idx)
+
+        sql.close()
+
+        num_beams = ranges['NumBeams'][0]
+        num_bins = ranges['NumBins'][0]
+        bin_size = ranges['BinSize'][0]
+        first_bin = ranges['RangeFirstBin'][0]
+        num_ens = len(ranges.index)
+
+        for ens in range(num_ens):
+
+            # Depth
+            avg_depth = 0.0
+            count = 0
+            for beam in range(num_beams):
+                range_str = 'RangeBeam' + str(beam)
+                if ranges[range_str][ens] is not 88.888:
+                    avg_depth += ranges[range_str][ens]
+                    count += 1
+
+            if count > 0:
+                avg_depth = avg_depth / count
+
+            bin_depth = int(round((avg_depth - first_bin) / bin_size, 0))
+
+            if 0 < bin_depth < num_bins:
+                #for bin_loc in range(bin_depth-1, num_bins):
+                #    bin_str = 'bin' + str(bin_loc)
+                #    east_vel.iloc[ens][bin_str] = 0.0
+                #    north_vel.iloc[ens][bin_str] = 0.0
+
+                bin_list = []
+                for bin_loc in range(bin_depth - 1, num_bins):
+                    bin_str = 'bin' + str(bin_loc)
+                    east_vel.iloc[ens][bin_str] = 0.0
+                    north_vel.iloc[ens][bin_str] = 0.0
+
+                print(east_vel.head())
+
+        return east_vel, north_vel
