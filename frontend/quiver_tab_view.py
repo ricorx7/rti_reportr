@@ -15,18 +15,15 @@ class Ui_Quiver_Tab(object):
         self.projectLabel = QtWidgets.QLabel(Quiver_Tab)
         self.projectLabel.setGeometry(QtCore.QRect(10, 30, 301, 31))
         self.projectLabel.setObjectName("projectLabel")
-        self.summaryTextEdit = QtWidgets.QTextEdit(Quiver_Tab)
-        self.summaryTextEdit.setGeometry(QtCore.QRect(0, 70, 761, 131))
-        font = QtGui.QFont()
-        font.setFamily("Courier New")
-        self.summaryTextEdit.setFont(font)
-        self.summaryTextEdit.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
-        self.summaryTextEdit.setReadOnly(True)
-        self.summaryTextEdit.setTabStopWidth(86)
-        self.summaryTextEdit.setObjectName("summaryTextEdit")
-        self.htmlWidget = QtWidgets.QWidget(Quiver_Tab)
-        self.htmlWidget.setGeometry(QtCore.QRect(0, 218, 760, 600))
-        self.htmlWidget.setObjectName("htmlWidget")
+        self.tabWidget = QtWidgets.QTabWidget(Quiver_Tab)
+        self.tabWidget.setGeometry(QtCore.QRect(0, 70, 701, 691))
+        self.tabWidget.setObjectName("tabWidget")
+        self.tab = QtWidgets.QWidget()
+        self.tab.setObjectName("tab")
+        self.tabWidget.addTab(self.tab, "")
+        self.tab_2 = QtWidgets.QWidget()
+        self.tab_2.setObjectName("tab_2")
+        self.tabWidget.addTab(self.tab_2, "")
 
         self.retranslateUi(Quiver_Tab)
         QtCore.QMetaObject.connectSlotsByName(Quiver_Tab)
@@ -35,7 +32,8 @@ class Ui_Quiver_Tab(object):
         _translate = QtCore.QCoreApplication.translate
         Quiver_Tab.setWindowTitle(_translate("Quiver_Tab", "MainWindow"))
         self.projectLabel.setText(_translate("Quiver_Tab", "TextLabel"))
-        self.summaryTextEdit.setPlaceholderText(_translate("Quiver_Tab", "Loading..."))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), _translate("Quiver_Tab", "Tab 1"))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), _translate("Quiver_Tab", "Tab 2"))
 
 
 if __name__ == "__main__":

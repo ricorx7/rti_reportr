@@ -20,7 +20,7 @@ class LocationTabVM(Ui_Location_Tab, QWidget):
         cur_folder = os.path.split(os.path.abspath(__file__))[0]
         cur_folder = os.path.join(cur_folder, '../')            # Move back a director
         cur_folder = os.path.join(cur_folder, 'html')           # html folder
-        cur_folder = os.path.join(cur_folder, 'map_' + project_name + '.html')
+        cur_folder = os.path.join(cur_folder, project_name + '_map.html')
 
         # Upgrade it to a Web engine
         # Display the plot
@@ -71,7 +71,7 @@ class LocationTabVM(Ui_Location_Tab, QWidget):
             if lat_lon_center < 0:
                 lat_lon_center = 0
 
-            file_name = 'map_' + self.project_name + '.html'
+            file_name = self.project_name + '_map.html'
             file_name = os.path.join('html', file_name)
 
             if not os.path.exists(file_name):

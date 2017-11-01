@@ -3,7 +3,7 @@ from __future__ import division
 import os
 
 from PyQt5.QtWidgets import QWidget
-from PyQt5 import QtWebEngineWidgets, QtCore
+from PyQt5 import QtWidgets, QtWebEngineWidgets, QtCore, QtGui
 
 import numpy as np
 import pandas as pd
@@ -35,27 +35,55 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         cur_folder = os.path.split(os.path.abspath(__file__))[0]
         cur_folder = os.path.join(cur_folder, '../')            # Move back a director
         cur_folder = os.path.join(cur_folder, 'html')           # html folder
-        cur_folder = os.path.join(cur_folder, 'vector_' + project_name + '.html')
+
+        combined_vector_file = os.path.join(cur_folder, project_name + '_combined_vector.html')
+        vector_file = os.path.join(cur_folder, project_name + '_vector.html')
+        mag_file = os.path.join(cur_folder, project_name + '_mag.html')
+
+        self.summaryTextEdit = QtWidgets.QTextEdit(self.tabWidget)
+        self.summaryTextEdit.setGeometry(QtCore.QRect(0, 70, 761, 131))
+        font = QtGui.QFont()
+        font.setFamily("Courier New")
+        self.summaryTextEdit.setFont(font)
+        self.summaryTextEdit.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.summaryTextEdit.setReadOnly(True)
+        self.summaryTextEdit.setTabStopWidth(86)
+        self.summaryTextEdit.setObjectName("summaryTextEdit")
 
         # Get data from DB
         adcp = self.get_adcp_info(project_idx)
-        earth_vel_east_df = self.get_project_velocity(project_idx, 0)       # Each row is an ensemble
+        earth_vel_east_df = self.get_project_velocity(project_idx, 0)  # Each row is an ensemble
         earth_vel_north_df = self.get_project_velocity(project_idx, 1)
 
-        # Mark bad below bottom
-        #earth_vel_east_df, earth_vel_north_df = self.mark_bad_below_bottom(project_idx, earth_vel_east_df, earth_vel_north_df)
+        if not os.path.exists(combined_vector_file) or not os.path.exists(vector_file) or not os.path.exists(mag_file):
 
-        #print(earth_vel_east_df.head())
-        #print(earth_vel_north_df.head())
+            # Mark bad below bottom
+            # THIS IS DONE BY SETTING max_vel
+            #earth_vel_east_df, earth_vel_north_df = self.mark_bad_below_bottom(project_idx, earth_vel_east_df, earth_vel_north_df)
 
-        # Create the plot
-        self.create_plot(adcp, earth_vel_east_df, earth_vel_north_df, max_vel=1.0)
+            # Create the plot
+            self.create_plot(adcp, earth_vel_east_df, earth_vel_north_df, max_vel=1.0)
+
+        # Clear the current tab
+        self.tabWidget.clear()
 
         # Upgrade it to a Web engine
         # Display the plot
-        self.htmlWidget = QtWebEngineWidgets.QWebEngineView(self.htmlWidget)
-        self.htmlWidget.resize(700, 565)
-        self.htmlWidget.load(QtCore.QUrl().fromLocalFile(cur_folder))
+        self.htmlWidget = QtWebEngineWidgets.QWebEngineView(self.tabWidget)
+        self.htmlWidget.load(QtCore.QUrl().fromLocalFile(combined_vector_file))
+
+        self.htmlMagWidget = QtWebEngineWidgets.QWebEngineView(self.tabWidget)
+        self.htmlMagWidget.load(QtCore.QUrl().fromLocalFile(mag_file))
+
+        self.htmlVectorWidget = QtWebEngineWidgets.QWebEngineView(self.tabWidget)
+        self.htmlVectorWidget.load(QtCore.QUrl().fromLocalFile(vector_file))
+
+        # Add the tabs
+        self.tabWidget.addTab(self.htmlWidget, "Combined")
+        self.tabWidget.addTab(self.summaryTextEdit, 'Summary')
+        self.tabWidget.addTab(self.htmlMagWidget, "Water Magnitude")
+        self.tabWidget.addTab(self.htmlVectorWidget, "Water Vectors")
+
 
     def create_plot(self, adcp, earth_vel_east_df, earth_vel_north_df, max_vel=80.0):
         # BAD VELOCITY
@@ -92,7 +120,9 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
 
         # Calculate the direction
         df_dir = pd.DataFrame(np.degrees(np.arctan2(earth_vel_east_df, earth_vel_north_df)))
-        #print(df_dir)
+
+        df_U = pd.DataFrame(-1 - earth_vel_east_df**2 + earth_vel_north_df)
+        df_V = pd.DataFrame(1 + earth_vel_east_df - earth_vel_north_df**2)
 
         # Create the quivers
         for index, row in df_mag.iterrows():
@@ -126,6 +156,8 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         length = np.asarray(length_vals)
         speed = np.asarray(speed_vals)
 
+        #xs, ys = self.streamlines(x0_ens, y0_ens, df_U.T, df_V.T, density=2)
+
         """
         Y, X = np.meshgrid(xx, yy)
         #U = -1 - X ** 2 + Y
@@ -156,18 +188,17 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
                              ticker=BasicTicker(desired_num_ticks=len(cm)),
                              label_standoff=6, border_line_color=None, location=(0, 0))
 
-
         TOOLS = "hover,save,pan,box_zoom,reset,wheel_zoom"
 
         p1 = figure(x_range=(0, num_ens), y_range=(0, num_bins), tools=TOOLS, title="Water Profile - Magnitude and Direction")
         p1.segment(x0_ens, y0_ens, x1_ens, y1_ens, color=colors, line_width=2)
         p1.xaxis.axis_label = "Ensembles"
         p1.yaxis.axis_label = 'Bins'
-        #p1.add_layout(color_bar, 'right')
 
         #p3 = figure(x_range=p1.x_range, y_range=p1.y_range)
         #p3.multi_line(xs, ys, color="#ee6666", line_width=2, line_alpha=0.8)
 
+        # Combine the data into a Data frame for ColumnDataSource for the plot
         speed_df = pd.DataFrame()
         speed_df['speed'] = speed_vals
         speed_df['ens'] = x0_ens
@@ -175,25 +206,38 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         source = ColumnDataSource(speed_df)
 
         p2 = figure(x_range=p1.x_range, y_range=p1.y_range, tools=TOOLS, toolbar_location='left', title="Water Profile - Water Velocity")
-        p2.rect(x='ens', y='bin', width=1, height=1, source=source, fill_color=transform('speed', mapper), line_color=None)
+        p2.rect(x='ens', y='bin', width=1, height=1, source=source, fill_color=transform('speed', mapper), dilate=True, line_color=None)
         p2.xaxis.axis_label = "Ensembles"
         p2.yaxis.axis_label = 'Bins'
         p2.add_layout(color_bar, 'right')
         p2.select_one(HoverTool).tooltips = [
-            ("index", "$index"),
-            ("(x,y)", "($x, $y)"),
-            ("fill color", "$color[hex, swatch]:fill_color"),
+            ('ens', '@ens'),
+            ('bin', '@bin'),
             ('speed', '@speed'),
         ]
 
-        file_name = 'vector_' + self.project_name + '.html'
+        # Save Combined Vector and Mag HTML
+        file_name = self.project_name + '_combined_vector.html'
         file_name = os.path.join('html', file_name)
+        output_file(file_name, title="{} - Water Vectors and Magnitude".format(self.project_name))
+        save(gridplot([[p1, p2]], sizing_mode='stretch_both', merge_tools=True))  # Just save to file
 
-        output_file(file_name, title="vector.py example")
+        # Save Vector HTML
+        # New colobar created, because previous one is associated with mag plot
+        color_bar1 = ColorBar(color_mapper=mapper, major_label_text_font_size="5pt",
+                             ticker=BasicTicker(desired_num_ticks=len(cm)),
+                             label_standoff=6, border_line_color=None, location=(0, 0))
+        p1.add_layout(color_bar1, 'right')
+        file_name = self.project_name + '_vector.html'
+        file_name = os.path.join('html', file_name)
+        output_file(file_name, title="{} - Water Magnitude".format(self.project_name))
+        save(gridplot([[p1]], sizing_mode='stretch_both'))  # Just save to file
 
-        # show(gridplot([[p1, p2]], plot_width=400, plot_height=400))  # open a browser
-        #save(gridplot([[p1, p2]], plot_width=320, plot_height=530))  # Just save to file
-        save(gridplot([[p1, p2]], plot_width=640, plot_height=510))  # Just save to file
+        # Save Magnitude HTML
+        file_name = self.project_name + '_mag.html'
+        file_name = os.path.join('html', file_name)
+        output_file(file_name, title="{} - Water Vectors".format(self.project_name))
+        save(gridplot([[p2]], sizing_mode='stretch_both'))  # Just save to file
 
     def streamlines(self, x, y, u, v, density=1):
         ''' Return streamlines of a vector flow.
@@ -243,6 +287,7 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
             else:
                 x = np.int(xi)
                 y = np.int(yi)
+
             a00 = a[y,x]
             a01 = a[y,x+1]
             a10 = a[y+1,x]
