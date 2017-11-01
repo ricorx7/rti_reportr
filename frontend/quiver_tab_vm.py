@@ -90,7 +90,7 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         BAD_VEL = 88.888
 
         # Scale factor to allow the quivers to fit on the screen
-        SCALE_FACTOR = 4
+        SCALE_FACTOR = 1
 
         # Get the number of bins in the df
         # Get the number of ensembles in the df
@@ -191,7 +191,7 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         TOOLS = "hover,save,pan,box_zoom,reset,wheel_zoom"
 
         p1 = figure(x_range=(0, num_ens), y_range=(0, num_bins), tools=TOOLS, title="Water Profile - Magnitude and Direction")
-        p1.segment(x0_ens, y0_ens, x1_ens, y1_ens, color=colors, line_width=2)
+        p1.segment(x0_ens, y0_ens, x1_ens, y1_ens, color=colors, line_width=1)
         p1.xaxis.axis_label = "Ensembles"
         p1.yaxis.axis_label = 'Bins'
 
