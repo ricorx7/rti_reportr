@@ -13,6 +13,7 @@ from bokeh.layouts import gridplot
 from bokeh.plotting import figure, show, save, output_file
 from bokeh.models import ColumnDataSource, HoverTool, LinearColorMapper, BasicTicker, PrintfTickFormatter, ColorBar
 from bokeh.transform import transform
+from bokeh.palettes import RdBu, Spectral, RdYlBu, RdGy, YlGnBu, Inferno, Plasma, PuBu
 
 from .quiver_tab_view import Ui_Quiver_Tab
 
@@ -178,7 +179,13 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         #cm = np.array(["#75968f", "#a5bab7", "#c9d9d3", "#e2e2e2", "#dfccce", "#ddb7b1", "#cc7878", "#933b41", "#550b1d"])  # Green / White / Red
         #cm = np.array(["#C7E9B4", "#7FCDBB", "#41B6C4", "#1D91C0", "#225EA8", "#0C2C84"])      #  Green / Blue
         #cm = np.array(['#084594', '#2171b5', '#4292c6', '#6baed6', '#9ecae1', '#c6dbef', '#deebf7', '#f7fbff'])  # Blue to white
-        cm = np.array(['#000000', '#084594', '#2171b5', '#4292c6', '#6baed6', '#9ecae1', '#c6dbef', '#deebf7', '#f7fbff'])  # Black to Blue to white
+        #cm = np.array(['#000000', '#084594', '#2171b5', '#4292c6', '#6baed6', '#9ecae1', '#c6dbef', '#deebf7', '#f7fbff'])  # Black to Blue to white
+        #cm = np.array(YlGnBu[9])  # 9 Is the colormap version
+        #cm = np.array(Spectral[9])
+        #cm = np.array(Inferno[9])
+        #cm = np.array(RdYlBu[9])
+        cm = np.array(Plasma[9])
+        #cm = np.array(PuBu[9])
         #cm = np.array(['#f7fbff', '#deebf7', '#c6dbef', '#6baed6', '#9ecae1', '#4292c6', '#2171b5', '#084594'])  # White to Blue
         ix = ((length - length.min()) / (length.max() - length.min()) * 5).astype('int')
         colors = cm[ix]
@@ -424,31 +431,36 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
 
         # Get ensemble earth velocity data
         earth_vel = sql.get_earth_vel_data(idx, beam)
+        num_bins = earth_vel['numbins'][0]
 
         if remove_ship_speed:
             # Get bottom track velocity
             bt_vel = sql.get_bottom_track_vel(idx)
 
-            num_bins = bt_vel['numbins'][0]
+            # Verify there is bottom track data
+            if not bt_vel.empty:
 
-            # Mark all bad data 0 so when added, it will not increase above 88.888
-            #bt_vel = bt_vel.replace([88.888], 0.0)
-            #earth_vel = earth_vel.replace([88.888], 0.0)
+                num_bins = bt_vel['numbins'][0]
 
-            for bin_loc in range(num_bins):
-                bin_str = 'bin' + str(bin_loc)
+                # Mark all bad data 0 so when added, it will not increase above 88.888
+                #bt_vel = bt_vel.replace([88.888], 0.0)
+                #earth_vel = earth_vel.replace([88.888], 0.0)
 
-                # Add bottom track velocity to earth velocity to remove the ship speed
-                if beam == 0:
-                    earth_vel[bin_str] += bt_vel['Earth0']
-                elif beam == 1:
-                    earth_vel[bin_str] += bt_vel['Earth1']
-                elif beam == 2:
-                    earth_vel[bin_str] += bt_vel['Earth2']
-                elif beam == 3:
-                    earth_vel[bin_str] += bt_vel['Earth3']
+                for bin_loc in range(num_bins):
+                    bin_str = 'bin' + str(bin_loc)
 
-        self.summaryTextEdit.append(str(bt_vel))
+                    # Add bottom track velocity to earth velocity to remove the ship speed
+                    if beam == 0:
+                        earth_vel[bin_str] += bt_vel['Earth0']
+                    elif beam == 1:
+                        earth_vel[bin_str] += bt_vel['Earth1']
+                    elif beam == 2:
+                        earth_vel[bin_str] += bt_vel['Earth2']
+                    elif beam == 3:
+                        earth_vel[bin_str] += bt_vel['Earth3']
+
+                self.summaryTextEdit.append(str(bt_vel))
+
         self.summaryTextEdit.append(str(earth_vel.iloc[:, :num_bins+2]))
 
         sql.close()
@@ -522,7 +534,5 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
                     bin_str = 'bin' + str(bin_loc)
                     east_vel.iloc[ens][bin_str] = 0.0
                     north_vel.iloc[ens][bin_str] = 0.0
-
-                print(east_vel.head())
 
         return east_vel, north_vel
