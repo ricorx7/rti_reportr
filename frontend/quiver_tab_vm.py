@@ -9,15 +9,10 @@ import numpy as np
 import pandas as pd
 import math
 
-from bokeh.layouts import gridplot
-from bokeh.plotting import figure, show, save, output_file
-from bokeh.models import ColumnDataSource, HoverTool, LinearColorMapper, BasicTicker, PrintfTickFormatter, ColorBar
-from bokeh.transform import transform
-from bokeh.palettes import RdBu, Spectral, RdYlBu, RdGy, YlGnBu, Inferno, Plasma, PuBu
-
 from .quiver_tab_view import Ui_Quiver_Tab
 
 from rti_python.Writer.rti_sql import rti_sql
+from rti_python.Plots.rti_sql_plot_mag_dir import plot_mag_dir
 
 
 class QuiverTabVM(Ui_Quiver_Tab, QWidget):
@@ -28,19 +23,19 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         self.setupUi(self)
         self.parent = parent
         self.sql_conn_str = sql_conn_str
+        self.project_idx = project_idx
 
         print(project_idx)
         self.project_name = project_name
         self.projectLabel.setText(project_name)
 
-        cur_folder = os.path.split(os.path.abspath(__file__))[0]
-        cur_folder = os.path.join(cur_folder, '../')            # Move back a director
-        cur_folder = os.path.join(cur_folder, 'html')           # html folder
+        self.cur_folder = os.path.split(os.path.abspath(__file__))[0]
+        self.cur_folder = os.path.join(self.cur_folder, '../')            # Move back a director
+        self.cur_folder = os.path.join(self.cur_folder, 'html')           # html folder
 
-        combined_vector_file = os.path.join(cur_folder, project_name + '_combined_vector.html')
-        vector_file = os.path.join(cur_folder, project_name + '_vector.html')
-        mag_file = os.path.join(cur_folder, project_name + '_mag.html')
+        self.redrawButton.clicked.connect(self.redraw_plot)
 
+        # Create summary tab
         self.summaryTextEdit = QtWidgets.QTextEdit(self.tabWidget)
         self.summaryTextEdit.setGeometry(QtCore.QRect(0, 70, 761, 131))
         font = QtGui.QFont()
@@ -51,11 +46,66 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         self.summaryTextEdit.setTabStopWidth(86)
         self.summaryTextEdit.setObjectName("summaryTextEdit")
 
-        # Get data from DB
-        adcp = self.get_adcp_info(project_idx)
-        earth_vel_east_df = self.get_project_velocity(project_idx, 0)  # Each row is an ensemble
-        earth_vel_north_df = self.get_project_velocity(project_idx, 1)
+        # Draw the plot
+        self.draw_plots()
 
+    def draw_plots(self):
+        # Clear the current tab
+        self.tabWidget.clear()
+
+        # Add Summary Tab
+        self.tabWidget.addTab(self.summaryTextEdit, 'Summary')
+
+        # Get the ADCP configurations
+        configs_df = self.get_adcp_configs(self.project_idx)
+
+        for index, row in configs_df.iterrows():
+            self.draw_plot(row['subsystemcode'], row['subsystemconfig'])
+
+    def redraw_plot(self):
+        # Remove the old files
+        if os.path.exists(self.combined_vector_file):
+            os.remove(self.combined_vector_file)
+        if os.path.exists(self.vector_file):
+            os.remove(self.vector_file)
+        if os.path.exists(self.mag_file):
+            os.remove(self.mag_file)
+
+        # Clear the summary tab
+        self.summaryTextEdit.clear()
+
+        # Redraw the plots
+        self.draw_plot()
+
+    def draw_plot(self, ss_code, ss_config):
+        # Create file names
+        ss_str = "_{}_{}".format(ss_config, ss_code)
+        combined_vector_file = os.path.join(self.cur_folder, self.project_name + ss_str + '_combined_vector.html')
+        vector_file = os.path.join(self.cur_folder, self.project_name + ss_str + '_vector.html')
+        mag_file = os.path.join(self.cur_folder, self.project_name + ss_str + '_mag.html')
+
+        # Get data from DB
+        adcp = self.get_adcp_info(self.project_idx)
+        earth_vel_east_df = self.get_project_velocity(self.project_idx, 0, ss_code=ss_code, ss_config=ss_config)  # Each row is an ensemble
+        earth_vel_north_df = self.get_project_velocity(self.project_idx, 1, ss_code=ss_code, ss_config=ss_config)
+
+        self.summaryTextEdit.append("***   ADCP Data   ***")
+        self.summaryTextEdit.append(str(adcp))
+
+        # Check if upward or downward
+        is_upward = self.is_adcp_up_facing(self.project_idx)
+        if is_upward:
+            self.summaryTextEdit.append('ADCP Is Upward Facing')
+        else:
+            self.summaryTextEdit.append('ADCP Is Downward Facing')
+
+        # Drop all vertical beam data
+        if earth_vel_east_df is not None:
+            earth_vel_east_df = earth_vel_east_df[earth_vel_east_df.numbeams > 1]
+        if earth_vel_north_df is not None:
+            earth_vel_north_df = earth_vel_north_df[earth_vel_north_df.numbeams > 1]
+
+        # If they were already created, do no work
         if not os.path.exists(combined_vector_file) or not os.path.exists(vector_file) or not os.path.exists(mag_file):
 
             # Mark bad below bottom
@@ -63,357 +113,25 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
             #earth_vel_east_df, earth_vel_north_df = self.mark_bad_below_bottom(project_idx, earth_vel_east_df, earth_vel_north_df)
 
             # Create the plot
-            self.create_plot(adcp, earth_vel_east_df, earth_vel_north_df, max_vel=1.0)
-
-        # Clear the current tab
-        self.tabWidget.clear()
+            plot_mag_dir(self.project_name, adcp, earth_vel_east_df, earth_vel_north_df, ss_code=ss_code, ss_config=ss_config, max_vel=1.0, flip_y_axis=is_upward)
 
         # Upgrade it to a Web engine
         # Display the plot
-        self.htmlWidget = QtWebEngineWidgets.QWebEngineView(self.tabWidget)
-        self.htmlWidget.load(QtCore.QUrl().fromLocalFile(combined_vector_file))
+        htmlWidget = QtWebEngineWidgets.QWebEngineView(self.tabWidget)
+        htmlWidget.load(QtCore.QUrl().fromLocalFile(combined_vector_file))
 
-        self.htmlMagWidget = QtWebEngineWidgets.QWebEngineView(self.tabWidget)
-        self.htmlMagWidget.load(QtCore.QUrl().fromLocalFile(mag_file))
+        htmlMagWidget = QtWebEngineWidgets.QWebEngineView(self.tabWidget)
+        htmlMagWidget.load(QtCore.QUrl().fromLocalFile(mag_file))
 
-        self.htmlVectorWidget = QtWebEngineWidgets.QWebEngineView(self.tabWidget)
-        self.htmlVectorWidget.load(QtCore.QUrl().fromLocalFile(vector_file))
+        htmlVectorWidget = QtWebEngineWidgets.QWebEngineView(self.tabWidget)
+        htmlVectorWidget.load(QtCore.QUrl().fromLocalFile(vector_file))
 
         # Add the tabs
-        self.tabWidget.addTab(self.htmlWidget, "Combined")
-        self.tabWidget.addTab(self.summaryTextEdit, 'Summary')
-        self.tabWidget.addTab(self.htmlMagWidget, "Water Magnitude")
-        self.tabWidget.addTab(self.htmlVectorWidget, "Water Vectors")
+        self.tabWidget.addTab(htmlWidget, "Combined" + ss_str)
+        self.tabWidget.addTab(htmlMagWidget, "Water Magnitude" + ss_str)
+        self.tabWidget.addTab(htmlVectorWidget, "Water Vectors" + ss_str)
 
-
-    def create_plot(self, adcp, earth_vel_east_df, earth_vel_north_df, max_vel=80.0):
-        # BAD VELOCITY
-        BAD_VEL = 88.888
-
-        # Scale factor to allow the quivers to fit on the screen
-        SCALE_FACTOR = 1
-
-        # Get the number of bins in the df
-        # Get the number of ensembles in the df
-        num_bins = adcp['numbins']
-        num_ens = len(earth_vel_east_df.index)
-
-        x0_ens = []
-        y0_ens = []
-        x1_ens = []
-        y1_ens = []
-        length_vals = []
-        speed_vals = []
-
-        earth_vel_east_df = earth_vel_east_df.drop(['ensnum', 'beam'], axis=1)      # Ensemble number and beam column not needed
-        earth_vel_north_df = earth_vel_north_df.drop(['ensnum', 'beam'], axis=1)    # Ensemble number and beam column not needed
-        earth_vel_east_df = earth_vel_east_df.replace([None], 0.0)                  # Remove None so we can square
-        earth_vel_north_df = earth_vel_north_df.replace([None], 0.0)                # Remove None so we can square
-        earth_vel_east_df[earth_vel_east_df >= max_vel] = 0.0                       # Values marked bad set to 0
-        earth_vel_north_df[earth_vel_north_df >= max_vel] = 0.0                     # Values marked bad set to 0
-
-        # Calculate the magnitude
-        df_mag = pd.DataFrame(np.sqrt(np.square(earth_vel_east_df)+np.square(earth_vel_north_df)))
-        df_mag[df_mag >= max_vel] = 0.0  # Values marked bad set to 0
-        #df_mag[(~(np.abs(df_mag-df_mag.mean()) > (1*df_mag.std())))] = 0.0
-        #df_mag[(np.abs(df_mag-df_mag.mean())<=(5.0*df_mag.std()))] = 0.0
-        #print(df_mag)
-
-        # Calculate the direction
-        df_dir = pd.DataFrame(np.degrees(np.arctan2(earth_vel_east_df, earth_vel_north_df)))
-
-        df_U = pd.DataFrame(-1 - earth_vel_east_df**2 + earth_vel_north_df)
-        df_V = pd.DataFrame(1 + earth_vel_east_df - earth_vel_north_df**2)
-
-        # Create the quivers
-        for index, row in df_mag.iterrows():
-
-            for bin_loc in range(num_bins):
-                bin_str = 'bin'+str(bin_loc)
-
-                ens_loc = index
-                mag = row[bin_str]
-                vel_dir = df_dir.iloc[ens_loc][bin_str]
-                speed_vals.append(mag)
-
-                # Correct direction
-                if vel_dir < 0:
-                    vel_dir = 360.0 + vel_dir
-
-                # Apply scale factor to length
-                length_val = mag / SCALE_FACTOR  # Scale the length to fit better on the screen
-                length_vals.append(length_val)
-
-                # Generate angle for water direction
-                x1_val = ens_loc + length_val * np.cos(vel_dir)
-                y1_val = bin_loc + length_val * np.sin(vel_dir)
-
-                x0_ens.append(ens_loc)  # X = ensemble
-                y0_ens.append(bin_loc)  # Y = bin
-                x1_ens.append(x1_val)   # x1 = length and angle
-                y1_ens.append(y1_val)   # y1 = length and angle
-
-        # Turn the 2D array to 1D
-        length = np.asarray(length_vals)
-        speed = np.asarray(speed_vals)
-
-        #xs, ys = self.streamlines(x0_ens, y0_ens, df_U.T, df_V.T, density=2)
-
-        """
-        Y, X = np.meshgrid(xx, yy)
-        #U = -1 - X ** 2 + Y
-        #V = 1 + X - Y ** 2
-        U = X
-        V = Y
-        speed = np.sqrt(U * U + V * V)
-        theta = np.arctan(V / U)
-        x0 = X[::2, ::2].flatten()
-        y0 = Y[::2, ::2].flatten()
-        length = speed[::2, ::2].flatten() / 40
-        angle = theta[::2, ::2].flatten()
-        x1 = x0 + length * np.cos(angle)
-        y1 = y0 + length * np.sin(angle)
-        xs, ys = self.streamlines(xx, yy, U.T, V.T, density=2)
-        """
-
-        #cm = np.array(["#75968f", "#a5bab7", "#c9d9d3", "#e2e2e2", "#dfccce", "#ddb7b1", "#cc7878", "#933b41", "#550b1d"])  # Green / White / Red
-        #cm = np.array(["#C7E9B4", "#7FCDBB", "#41B6C4", "#1D91C0", "#225EA8", "#0C2C84"])      #  Green / Blue
-        #cm = np.array(['#084594', '#2171b5', '#4292c6', '#6baed6', '#9ecae1', '#c6dbef', '#deebf7', '#f7fbff'])  # Blue to white
-        #cm = np.array(['#000000', '#084594', '#2171b5', '#4292c6', '#6baed6', '#9ecae1', '#c6dbef', '#deebf7', '#f7fbff'])  # Black to Blue to white
-        #cm = np.array(YlGnBu[9])  # 9 Is the colormap version
-        #cm = np.array(Spectral[9])
-        #cm = np.array(Inferno[9])
-        #cm = np.array(RdYlBu[9])
-        cm = np.array(Plasma[9])
-        #cm = np.array(PuBu[9])
-        #cm = np.array(['#f7fbff', '#deebf7', '#c6dbef', '#6baed6', '#9ecae1', '#4292c6', '#2171b5', '#084594'])  # White to Blue
-        ix = ((length - length.min()) / (length.max() - length.min()) * 5).astype('int')
-        colors = cm[ix]
-        # this is the colormap from the original NYTimes plot
-        mapper = LinearColorMapper(palette=cm, low=speed.min(), high=speed.max())
-        color_bar = ColorBar(color_mapper=mapper, major_label_text_font_size="5pt",
-                             ticker=BasicTicker(desired_num_ticks=len(cm)),
-                             label_standoff=6, border_line_color=None, location=(0, 0))
-
-        TOOLS = "hover,save,pan,box_zoom,reset,wheel_zoom"
-
-        p1 = figure(x_range=(0, num_ens), y_range=(0, num_bins), tools=TOOLS, title="Water Profile - Magnitude and Direction")
-        p1.segment(x0_ens, y0_ens, x1_ens, y1_ens, color=colors, line_width=1)
-        p1.xaxis.axis_label = "Ensembles"
-        p1.yaxis.axis_label = 'Bins'
-
-        #p3 = figure(x_range=p1.x_range, y_range=p1.y_range)
-        #p3.multi_line(xs, ys, color="#ee6666", line_width=2, line_alpha=0.8)
-
-        # Combine the data into a Data frame for ColumnDataSource for the plot
-        speed_df = pd.DataFrame()
-        speed_df['speed'] = speed_vals
-        speed_df['ens'] = x0_ens
-        speed_df['bin'] = y0_ens
-        source = ColumnDataSource(speed_df)
-
-        p2 = figure(x_range=p1.x_range, y_range=p1.y_range, tools=TOOLS, toolbar_location='left', title="Water Profile - Water Velocity")
-        p2.rect(x='ens', y='bin', width=1, height=1, source=source, fill_color=transform('speed', mapper), dilate=True, line_color=None)
-        p2.xaxis.axis_label = "Ensembles"
-        p2.yaxis.axis_label = 'Bins'
-        p2.add_layout(color_bar, 'right')
-        p2.select_one(HoverTool).tooltips = [
-            ('ens', '@ens'),
-            ('bin', '@bin'),
-            ('speed', '@speed'),
-        ]
-
-        # Save Combined Vector and Mag HTML
-        file_name = self.project_name + '_combined_vector.html'
-        file_name = os.path.join('html', file_name)
-        output_file(file_name, title="{} - Water Vectors and Magnitude".format(self.project_name))
-        save(gridplot([[p1, p2]], sizing_mode='stretch_both', merge_tools=True))  # Just save to file
-
-        # Save Vector HTML
-        # New colobar created, because previous one is associated with mag plot
-        color_bar1 = ColorBar(color_mapper=mapper, major_label_text_font_size="5pt",
-                             ticker=BasicTicker(desired_num_ticks=len(cm)),
-                             label_standoff=6, border_line_color=None, location=(0, 0))
-        p1.add_layout(color_bar1, 'right')
-        file_name = self.project_name + '_vector.html'
-        file_name = os.path.join('html', file_name)
-        output_file(file_name, title="{} - Water Magnitude".format(self.project_name))
-        save(gridplot([[p1]], sizing_mode='stretch_both'))  # Just save to file
-
-        # Save Magnitude HTML
-        file_name = self.project_name + '_mag.html'
-        file_name = os.path.join('html', file_name)
-        output_file(file_name, title="{} - Water Vectors".format(self.project_name))
-        save(gridplot([[p2]], sizing_mode='stretch_both'))  # Just save to file
-
-    def streamlines(self, x, y, u, v, density=1):
-        ''' Return streamlines of a vector flow.
-
-        * x and y are 1d arrays defining an *evenly spaced* grid.
-        * u and v are 2d arrays (shape [y,x]) giving velocities.
-        * density controls the closeness of the streamlines. For different
-          densities in each direction, use a tuple or list [densityx, densityy].
-
-        '''
-
-        # Set up some constants - size of the grid used.
-        NGX = len(x)
-        NGY = len(y)
-
-        # Constants used to convert between grid index coords and user coords.
-        DX = x[1]-x[0]
-        DY = y[1]-y[0]
-        XOFF = x[0]
-        YOFF = y[0]
-
-        # Now rescale velocity onto axes-coordinates
-        u = u / (x[-1]-x[0])
-        v = v / (y[-1]-y[0])
-        speed = np.sqrt(u*u+v*v)
-        # s (path length) will now be in axes-coordinates, but we must
-        # rescale u for integrations.
-        u *= NGX
-        v *= NGY
-        # Now u and v in grid-coordinates.
-
-        NBX = int(30*density)
-        NBY = int(30*density)
-        blank = np.zeros((NBY,NBX))
-
-        bx_spacing = NGX/float(NBX-1)
-        by_spacing = NGY/float(NBY-1)
-
-        def blank_pos(xi, yi):
-            return int((xi / bx_spacing) + 0.5), \
-                   int((yi / by_spacing) + 0.5)
-
-        def value_at(a, xi, yi):
-            if type(xi) == np.ndarray:
-                x = xi.astype(np.int)
-                y = yi.astype(np.int)
-            else:
-                x = np.int(xi)
-                y = np.int(yi)
-
-            a00 = a[y,x]
-            a01 = a[y,x+1]
-            a10 = a[y+1,x]
-            a11 = a[y+1,x+1]
-            xt = xi - x
-            yt = yi - y
-            a0 = a00*(1-xt) + a01*xt
-            a1 = a10*(1-xt) + a11*xt
-            return a0*(1-yt) + a1*yt
-
-        def rk4_integrate(x0, y0):
-            # This function does RK4 forward and back trajectories from
-            # the initial conditions, with the odd 'blank array'
-            # termination conditions. TODO tidy the integration loops.
-
-            def f(xi, yi):
-                dt_ds = 1./value_at(speed, xi, yi)
-                ui = value_at(u, xi, yi)
-                vi = value_at(v, xi, yi)
-                return ui*dt_ds, vi*dt_ds
-
-            def g(xi, yi):
-                dt_ds = 1./value_at(speed, xi, yi)
-                ui = value_at(u, xi, yi)
-                vi = value_at(v, xi, yi)
-                return -ui*dt_ds, -vi*dt_ds
-
-            check = lambda xi, yi: xi>=0 and xi<NGX-1 and yi>=0 and yi<NGY-1
-
-            bx_changes = []
-            by_changes = []
-
-            # Integrator function
-            def rk4(x0, y0, f):
-                ds = 0.01               # min(1./NGX, 1./NGY, 0.01)
-                stotal = 0
-                xi = x0
-                yi = y0
-                xb, yb = blank_pos(xi, yi)
-                xf_traj = []
-                yf_traj = []
-                while check(xi, yi):
-                    # Time step. First save the point.
-                    xf_traj.append(xi)
-                    yf_traj.append(yi)
-                    # Next, advance one using RK4
-                    try:
-                        k1x, k1y = f(xi, yi)
-                        k2x, k2y = f(xi + .5*ds*k1x, yi + .5*ds*k1y)
-                        k3x, k3y = f(xi + .5*ds*k2x, yi + .5*ds*k2y)
-                        k4x, k4y = f(xi + ds*k3x, yi + ds*k3y)
-                    except IndexError:
-                        # Out of the domain on one of the intermediate steps
-                        break
-                    xi += ds*(k1x+2*k2x+2*k3x+k4x) / 6.
-                    yi += ds*(k1y+2*k2y+2*k3y+k4y) / 6.
-                    # Final position might be out of the domain
-                    if not check(xi, yi): break
-                    stotal += ds
-                    # Next, if s gets to thres, check blank.
-                    new_xb, new_yb = blank_pos(xi, yi)
-                    if new_xb != xb or new_yb != yb:
-                        # New square, so check and colour. Quit if required.
-                        if blank[new_yb,new_xb] == 0:
-                            blank[new_yb,new_xb] = 1
-                            bx_changes.append(new_xb)
-                            by_changes.append(new_yb)
-                            xb = new_xb
-                            yb = new_yb
-                        else:
-                            break
-                    if stotal > 2:
-                        break
-                return stotal, xf_traj, yf_traj
-
-            integrator = rk4
-
-            sf, xf_traj, yf_traj = integrator(x0, y0, f)
-            sb, xb_traj, yb_traj = integrator(x0, y0, g)
-            stotal = sf + sb
-            x_traj = xb_traj[::-1] + xf_traj[1:]
-            y_traj = yb_traj[::-1] + yf_traj[1:]
-
-            # Tests to check length of traj. Remember, s in units of axes.
-            if len(x_traj) < 1: return None
-            if stotal > .2:
-                initxb, inityb = blank_pos(x0, y0)
-                blank[inityb, initxb] = 1
-                return x_traj, y_traj
-            else:
-                for xb, yb in zip(bx_changes, by_changes):
-                    blank[yb, xb] = 0
-                return None
-
-        # A quick function for integrating trajectories if blank==0.
-        trajectories = []
-        def traj(xb, yb):
-            if xb < 0 or xb >= NBX or yb < 0 or yb >= NBY:
-                return
-            if blank[yb, xb] == 0:
-                t = rk4_integrate(xb*bx_spacing, yb*by_spacing)
-                if t is not None:
-                    trajectories.append(t)
-
-        # Now we build up the trajectory set. I've found it best to look
-        # for blank==0 along the edges first, and work inwards.
-        for indent in range((max(NBX,NBY))//2):
-            for xi in range(max(NBX,NBY)-2*indent):
-                traj(xi+indent, indent)
-                traj(xi+indent, NBY-1-indent)
-                traj(indent, xi+indent)
-                traj(NBX-1-indent, xi+indent)
-
-        xs = [np.array(t[0])*DX+XOFF for t in trajectories]
-        ys = [np.array(t[1])*DY+YOFF for t in trajectories]
-
-        return xs, ys
-
-    def get_project_velocity(self, idx, beam, remove_ship_speed=True):
+    def get_project_velocity(self, idx, beam, ss_code=None, ss_config=None, remove_ship_speed=True):
         """
         Get the earth velocity for the project info from the database.
         :param idx: Project index.
@@ -430,38 +148,58 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
             return
 
         # Get ensemble earth velocity data
-        earth_vel = sql.get_earth_vel_data(idx, beam)
-        num_bins = earth_vel['numbins'][0]
+        earth_vel = sql.get_earth_vel_data(idx, beam, ss_code=ss_code, ss_config=ss_config)
 
-        if remove_ship_speed:
-            # Get bottom track velocity
-            bt_vel = sql.get_bottom_track_vel(idx)
+        # Verify we have data
+        if earth_vel is not None and not earth_vel.empty:
 
-            # Verify there is bottom track data
-            if not bt_vel.empty:
+            num_bins = earth_vel['numbins'][0]
 
-                num_bins = bt_vel['numbins'][0]
+            if remove_ship_speed:
+                # Get bottom track velocity
+                bt_vel = sql.get_bottom_track_vel(idx)
 
-                # Mark all bad data 0 so when added, it will not increase above 88.888
-                #bt_vel = bt_vel.replace([88.888], 0.0)
-                #earth_vel = earth_vel.replace([88.888], 0.0)
+                # Verify there is bottom track data
+                if not bt_vel.empty:
 
-                for bin_loc in range(num_bins):
-                    bin_str = 'bin' + str(bin_loc)
+                    num_bins = bt_vel['numbins'][0]
 
-                    # Add bottom track velocity to earth velocity to remove the ship speed
-                    if beam == 0:
-                        earth_vel[bin_str] += bt_vel['Earth0']
-                    elif beam == 1:
-                        earth_vel[bin_str] += bt_vel['Earth1']
-                    elif beam == 2:
-                        earth_vel[bin_str] += bt_vel['Earth2']
-                    elif beam == 3:
-                        earth_vel[bin_str] += bt_vel['Earth3']
+                    # Mark all bad data 0 so when added, it will not increase above 88.888
+                    #bt_vel = bt_vel.replace([88.888], 0.0)
+                    #earth_vel = earth_vel.replace([88.888], 0.0)
 
-                self.summaryTextEdit.append(str(bt_vel))
+                    for bin_loc in range(num_bins):
+                        bin_str = 'bin' + str(bin_loc)
 
-        self.summaryTextEdit.append(str(earth_vel.iloc[:, :num_bins+2]))
+                        # Add bottom track velocity to earth velocity to remove the ship speed
+                        if beam == 0:
+                            earth_vel[bin_str] += bt_vel['Earth0']
+                        elif beam == 1:
+                            earth_vel[bin_str] += bt_vel['Earth1']
+                        elif beam == 2:
+                            earth_vel[bin_str] += bt_vel['Earth2']
+                        elif beam == 3:
+                            earth_vel[bin_str] += bt_vel['Earth3']
+
+                    """
+                    earth_vel[earth_vel.beam == 0] += bt_vel['Earth0']
+                    earth_vel[earth_vel.beam == 1] += bt_vel['Earth1']
+                    earth_vel[earth_vel.beam == 2] += bt_vel['Earth2']
+                    earth_vel[earth_vel.beam == 3] += bt_vel['Earth3']
+                    """
+
+                    self.summaryTextEdit.append("***   Bottom Track Velocity   ***")
+                    self.summaryTextEdit.append(str(bt_vel))
+
+            if beam == 0:
+                self.summaryTextEdit.append("***   Earth Velocity - East[{}_{}_{}]   ***".format(beam, ss_code, ss_config))
+            elif beam == 1:
+                self.summaryTextEdit.append("***   Earth Velocity - North[{}_{}_{}]   ***".format(beam, ss_code, ss_config))
+            elif beam == 2:
+                self.summaryTextEdit.append("***   Earth Velocity - Vertical[{}_{}_{}]   ***".format(beam, ss_code, ss_config))
+            elif beam == 3:
+                self.summaryTextEdit.append("***   Earth Velocity - Error[{}_{}_{}]   ***".format(beam, ss_code, ss_config))
+            self.summaryTextEdit.append(str(earth_vel.iloc[:, :num_bins+4]))        # Add 4 to include the [ensnum, numbeams, numbins, beam]
 
         sql.close()
 
@@ -481,12 +219,74 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
             print("Unable to connect to the database: ", e)
             return
 
-        # Get ensemble earth velocity data
+        # Get ADCP data
         info = sql.get_adcp_info(idx)
 
         sql.close()
 
         return info
+
+    def is_adcp_up_facing(self, idx):
+        """
+        Get the ADCP info.
+        :param idx: Project index.
+        :return: ADCP info.
+        """
+
+        # Make connection
+        try:
+            sql = rti_sql(self.sql_conn_str)
+        except Exception as e:
+            print("Unable to connect to the database: ", e)
+            return
+
+        # Get ADCP data
+        compass_df = sql.get_compass_data(idx)
+
+        sql.close()
+
+        self.summaryTextEdit.append('*** Compass Data ***')
+        self.summaryTextEdit.append(str(compass_df))
+
+        # Take the Absolute value
+        compass_df['roll'] = abs(compass_df['roll'])
+        avg_roll = compass_df['roll'].mean()
+
+        print("Average Roll: ", avg_roll)
+
+        # Angles around 180 deg is downward looking
+        # Angles around 0 deg is upward looking
+        # Angles will be +/-  so +/180 degrees is downward
+        if 130 < avg_roll >= 180:
+            return False
+
+        return True
+
+    def get_adcp_configs(self, idx):
+        """
+        Get the ADCP configurations.
+        :param idx: Project index.
+        :return: ADCP configurations.
+        """
+
+        # Make connection
+        try:
+            sql = rti_sql(self.sql_conn_str)
+        except Exception as e:
+            print("Unable to connect to the database: ", e)
+            return
+
+        # Get ADCP data
+        ss_configs = sql.get_subsystem_configs(idx)
+
+        sql.close()
+
+        #self.summaryTextEdit.append('*** Subsystem Codes ***')
+        #self.summaryTextEdit.append(str(ss_codes))
+        self.summaryTextEdit.append('*** Subsystem Configuration ***')
+        self.summaryTextEdit.append(str(ss_configs))
+
+        return ss_configs
 
     def mark_bad_below_bottom(self, idx, east_vel, north_vel):
         # Make connection

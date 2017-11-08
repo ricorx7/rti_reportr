@@ -24,6 +24,9 @@ class Ui_Quiver_Tab(object):
         self.tab_2 = QtWidgets.QWidget()
         self.tab_2.setObjectName("tab_2")
         self.tabWidget.addTab(self.tab_2, "")
+        self.redrawButton = QtWidgets.QPushButton(Quiver_Tab)
+        self.redrawButton.setGeometry(QtCore.QRect(590, 40, 113, 32))
+        self.redrawButton.setObjectName("redrawButton")
 
         self.retranslateUi(Quiver_Tab)
         QtCore.QMetaObject.connectSlotsByName(Quiver_Tab)
@@ -34,6 +37,7 @@ class Ui_Quiver_Tab(object):
         self.projectLabel.setText(_translate("Quiver_Tab", "TextLabel"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), _translate("Quiver_Tab", "Tab 1"))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), _translate("Quiver_Tab", "Tab 2"))
+        self.redrawButton.setText(_translate("Quiver_Tab", "Redraw"))
 
 
 if __name__ == "__main__":
