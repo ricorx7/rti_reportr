@@ -137,8 +137,11 @@ class ReportrVM(Ui_RoweTechReportR):
         df = pd.DataFrame(ens.Amplitude.Amplitude)
         print(df.head())
 
-        # Add the ensemble to the project
-        self.projects.add_ensemble(ens)
+        try:
+            # Add the ensemble to the project
+            self.projects.add_ensemble(ens)
+        except Exception as ex:
+            print("Error adding ensemble to project.", ex)
 
     def set_tabs(self, selected_item):
         # Clear the current tabs

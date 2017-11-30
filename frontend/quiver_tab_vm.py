@@ -8,6 +8,7 @@ from PyQt5 import QtWidgets, QtWebEngineWidgets, QtCore, QtGui
 import numpy as np
 import pandas as pd
 import math
+import glob
 
 from .quiver_tab_view import Ui_Quiver_Tab
 
@@ -59,23 +60,24 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         # Get the ADCP configurations
         configs_df = self.get_adcp_configs(self.project_idx)
 
-        for index, row in configs_df.iterrows():
-            self.draw_plot(row['subsystemcode'], row['subsystemconfig'])
+        if not configs_df.empty:
+            for index, row in configs_df.iterrows():
+                self.draw_plot(row['subsystemcode'], row['subsystemconfig'])
 
     def redraw_plot(self):
         # Remove the old files
-        if os.path.exists(self.combined_vector_file):
-            os.remove(self.combined_vector_file)
-        if os.path.exists(self.vector_file):
-            os.remove(self.vector_file)
-        if os.path.exists(self.mag_file):
-            os.remove(self.mag_file)
+        for fl in glob.glob(os.path.join(self.cur_folder, self.project_name + '*' + '_combined_vector.html')):
+            os.remove(fl)
+        for fl in glob.glob(os.path.join(self.cur_folder, self.project_name + '*' + '_vector.html')):
+            os.remove(fl)
+        for fl in glob.glob(os.path.join(self.cur_folder, self.project_name + '*' + '_mag.html')):
+            os.remove(fl)
 
         # Clear the summary tab
         self.summaryTextEdit.clear()
 
         # Redraw the plots
-        self.draw_plot()
+        self.draw_plots()
 
     def draw_plot(self, ss_code, ss_config):
         # Create file names
@@ -89,6 +91,10 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         earth_vel_east_df = self.get_project_velocity(self.project_idx, 0, ss_code=ss_code, ss_config=ss_config)  # Each row is an ensemble
         earth_vel_north_df = self.get_project_velocity(self.project_idx, 1, ss_code=ss_code, ss_config=ss_config)
 
+        # If there is no data, than we cannot plot
+        if earth_vel_north_df.empty or earth_vel_east_df.empty:
+            return
+
         self.summaryTextEdit.append("***   ADCP Data   ***")
         self.summaryTextEdit.append(str(adcp))
 
@@ -100,20 +106,23 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
             self.summaryTextEdit.append('ADCP Is Downward Facing')
 
         # Drop all vertical beam data
-        if earth_vel_east_df is not None:
+        if earth_vel_east_df is not None and not earth_vel_east_df.empty:
             earth_vel_east_df = earth_vel_east_df[earth_vel_east_df.numbeams > 1]
-        if earth_vel_north_df is not None:
+        if earth_vel_north_df is not None and not earth_vel_north_df.empty:
             earth_vel_north_df = earth_vel_north_df[earth_vel_north_df.numbeams > 1]
+
+        # Bottom Track range
+        bottom_track_range_df = self.get_bt_range(self.project_idx, ss_code=ss_code, ss_config=ss_config)
 
         # If they were already created, do no work
         if not os.path.exists(combined_vector_file) or not os.path.exists(vector_file) or not os.path.exists(mag_file):
 
             # Mark bad below bottom
             # THIS IS DONE BY SETTING max_vel
-            #earth_vel_east_df, earth_vel_north_df = self.mark_bad_below_bottom(project_idx, earth_vel_east_df, earth_vel_north_df)
+            earth_vel_east_df, earth_vel_north_df, num_bins = self.mark_bad_below_bottom(self.project_idx, earth_vel_east_df, earth_vel_north_df)
 
             # Create the plot
-            plot_mag_dir(self.project_name, adcp, earth_vel_east_df, earth_vel_north_df, ss_code=ss_code, ss_config=ss_config, max_vel=1.0, flip_y_axis=is_upward)
+            plot_mag_dir(self.project_name, adcp, earth_vel_east_df, earth_vel_north_df, num_bins, bt_range_df=bottom_track_range_df, ss_code=ss_code, ss_config=ss_config, max_vel=2.0, flip_y_axis=is_upward, smoothing="hamming", smoothing_win=50)
 
         # Upgrade it to a Web engine
         # Display the plot
@@ -136,6 +145,8 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         Get the earth velocity for the project info from the database.
         :param idx: Project index.
         :param beam: Beam number.
+        :param ss_code: Subsystem code.
+        :param ss_config: Subsystem configuration index.
         :param remove_ship_speed: Remove the ship speed from the velocities.
         :return: Earth velocity data.
         """
@@ -257,9 +268,11 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
         # Angles around 180 deg is downward looking
         # Angles around 0 deg is upward looking
         # Angles will be +/-  so +/180 degrees is downward
-        if 130 < avg_roll >= 180:
+        if 130.0 < avg_roll <= 180.0:
+            print("Downward facing")
             return False
 
+        print("Upward facing")
         return True
 
     def get_adcp_configs(self, idx):
@@ -301,11 +314,16 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
 
         sql.close()
 
+        # No bottom track data so do nothing
+        if ranges.empty:
+            return east_vel, north_vel, 0
+
         num_beams = ranges['NumBeams'][0]
         num_bins = ranges['NumBins'][0]
         bin_size = ranges['BinSize'][0]
         first_bin = ranges['RangeFirstBin'][0]
         num_ens = len(ranges.index)
+        max_bin_depth = 0
 
         for ens in range(num_ens):
 
@@ -322,17 +340,57 @@ class QuiverTabVM(Ui_Quiver_Tab, QWidget):
                 avg_depth = avg_depth / count
 
             bin_depth = int(round((avg_depth - first_bin) / bin_size, 0))
+            max_bin_depth = max(bin_depth, max_bin_depth)                       # Keep track of the largest bin depth
 
-            if 0 < bin_depth < num_bins:
+            #if 0 < bin_depth < num_bins:
                 #for bin_loc in range(bin_depth-1, num_bins):
                 #    bin_str = 'bin' + str(bin_loc)
                 #    east_vel.iloc[ens][bin_str] = 0.0
                 #    north_vel.iloc[ens][bin_str] = 0.0
 
-                bin_list = []
-                for bin_loc in range(bin_depth - 1, num_bins):
-                    bin_str = 'bin' + str(bin_loc)
-                    east_vel.iloc[ens][bin_str] = 0.0
-                    north_vel.iloc[ens][bin_str] = 0.0
+                #bin_list = []
+                #for bin_loc in range(bin_depth - 1, num_bins):
+                #    bin_str = 'bin' + str(bin_loc)
+                #    east_vel.loc[ens][bin_str] = 0.0
+                #    north_vel.loc[ens][bin_str] = 0.0
 
-        return east_vel, north_vel
+        return east_vel, north_vel, max_bin_depth
+
+    def get_bt_range(self, idx, ss_code=None, ss_config=None):
+        """
+        Get the earth velocity for the project info from the database.
+        :param idx: Project index.
+        :param beam: Beam number.
+        :param ss_code: Subsystem code.
+        :param ss_config: Subsystem configuration index.
+        :return: Average range for each ensemble.
+        """
+
+        # Make connection
+        try:
+            sql = rti_sql(self.sql_conn_str)
+        except Exception as e:
+            print("Unable to connect to the database: ", e)
+            return
+
+        # Get ensemble Bottom Track Range data
+        bt_range_df = sql.get_bottom_track_range(idx, ss_code=ss_code, ss_config=ss_config)
+
+        # Verify we have data
+        if bt_range_df is not None and not bt_range_df.empty:
+            # Set all column values that are 0 to NaN so average will
+            # Only calculate good values
+            bt_range_df = bt_range_df.replace(0, np.NAN)
+
+            # Average the columns
+            bt_range_df['avg'] = bt_range_df[['RangeBeam0', 'RangeBeam1', 'RangeBeam2', 'RangeBeam3']].mean(axis=1)
+
+            # Bin number for the range
+            bt_range_df['BinRange'] = (bt_range_df['avg'] - bt_range_df['RangeFirstBin']) / bt_range_df['BinSize']
+
+            self.summaryTextEdit.append("***   Bottom Track Range   ***")
+            self.summaryTextEdit.append(str(bt_range_df))
+
+        sql.close()
+
+        return bt_range_df
