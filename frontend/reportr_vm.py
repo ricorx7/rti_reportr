@@ -15,6 +15,7 @@ from rti_python.Writer.rti_sql import rti_sql
 from rti_python.Writer.rti_projects import RtiProjects
 
 import pandas as pd
+from .config import Config
 
 
 class ReportrVM(Ui_RoweTechReportR):
@@ -36,17 +37,19 @@ class ReportrVM(Ui_RoweTechReportR):
         self.default_prj_name = ''
         self.prj_file_path = ''
 
+        self.burst_num = 0          # Keep track of the burst number
+
         # Create project file
         # self.project_file = Project("projects.sqlite")
 
         # Create project h5py file
         # self.h5py_file = h5py.RtiH5py("project.h5py")
 
-        self.projects = RtiProjects(host='localhost',
-                                    port='5432',
-                                    dbname='rti',
-                                    user='test',
-                                    pw='123456')
+        self.projects = RtiProjects(host=Config.HOST,
+                                    port=Config.PORT,
+                                    dbname=Config.DBNAME,
+                                    user=Config.USER,
+                                    pw=Config.PW)
 
         for prj in self.projects.get_all_projects():
             self.projectListWidget.addItem(prj[1])
@@ -100,12 +103,13 @@ class ReportrVM(Ui_RoweTechReportR):
                 # Read in the data and decode it
                 print("Reading files...")
                 for x in range(self.selectedFileListView.count()):              # Load each file selected
+                    self.burst_num = x                                          # Set the burst number
                     file = str(self.selectedFileListView.item(x).text())        # Get the file path from the list
                     print("Loading: ", file)
                     self.process_file(file)                                     # Process the file in the codec
 
-                    # Add the project to the list
-                    self.projectListWidget.addItem(self.project_name)
+                # Add the project to the list
+                self.projectListWidget.addItem(self.project_name)
             else:
                 # Ask for a new project
                 self.read_files(True)
@@ -125,21 +129,21 @@ class ReportrVM(Ui_RoweTechReportR):
         self.projects.end_batch()
 
     def process_ensemble(self, sender, ens):
-        print("ReportR_vm.process_ensemble() Ens Num: " + str(ens.EnsembleData.EnsembleNumber))
+        print("ReportR_vm.process_ensemble() {} Ens Num: {}".format(str(self.burst_num), str(ens.EnsembleData.EnsembleNumber)))
         # Take decoded data and store it
 
         # Create an empty dataframe
-        ens_df = pd.DataFrame()
+        #ens_df = pd.DataFrame()
 
         # Each Beam creates a new column for all the data
 
         # Make a dataframe
-        df = pd.DataFrame(ens.Amplitude.Amplitude)
-        print(df.head())
+        #df = pd.DataFrame(ens.Amplitude.Amplitude)
+        #print(df.head())
 
         try:
             # Add the ensemble to the project
-            self.projects.add_ensemble(ens)
+            self.projects.add_ensemble(ens, self.burst_num)
         except Exception as ex:
             print("Error adding ensemble to project.", ex)
 

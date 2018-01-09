@@ -42,24 +42,31 @@ class SummaryTabVM(Ui_Summary_Tab, QWidget):
         # Get all projects
         try:
             # Get all the ensembles for the project
-            ens_query = 'SELECT ensnum, datetime, serialnumber, firmware FROM ensembles WHERE project_id = %s ORDER BY ensnum ASC;'
+            ens_query = 'SELECT ensnum, datetime, serialnumber, firmware, burstnum FROM ensembles WHERE project_id = %s ORDER BY ensnum ASC;'
             sql.cursor.execute(ens_query, (idx,))
             #ens_results = sql.cursor.fetchall()
             #sql.conn.commit()
             #print(ens_results)
 
-            df = pd.DataFrame(sql.cursor.fetchall(), columns=['ensnum', 'datetime', 'serialnumber', 'firmware'])
+            df = pd.DataFrame(sql.cursor.fetchall(), columns=['ensnum', 'datetime', 'serialnumber', 'firmware', 'BurstNum'])
             self.serialnumber = df['serialnumber'][0]
             self.firmware = df['firmware'][0]
             self.num_ensembles = len(df.index)
             df = df.drop('serialnumber', 1)
             df = df.drop('firmware', 1)     # 1 = column drop
+
+            # Number of bursts
+            ens_query = 'SELECT COUNT(DISTINCT BurstNum) FROM ensembles'
+            sql.cursor.execute(ens_query, (idx,))
+            num_bursts = sql.cursor.fetchall()[0][0]
+
             self.summaryTextEdit.append(tabulate(df, headers='keys', tablefmt='psql', showindex=False))     # Tabulate to pretty print
             self.summaryTextEdit.append("Serial Number:        {0}".format(self.serialnumber))
             self.summaryTextEdit.append("Firmware Version:     {0}".format(self.firmware))
             self.summaryTextEdit.append("First DateTime:       {0}".format(df['datetime'][0]))
             self.summaryTextEdit.append("Last DateTime:        {0}".format(df['datetime'][len(df.index)-1]))
             self.summaryTextEdit.append("Number of Ensembles:  {0}".format(self.num_ensembles))
+            self.summaryTextEdit.append("Number of Bursts:     {0}".format(num_bursts))
 
         except Exception as e:
             print("Unable to run query", e)

@@ -2,3 +2,8 @@ pyqt5
 psycopg2
 tabulate
 pandas
+requests
+bokeh
+scipy
+pynmea2
+pycrc

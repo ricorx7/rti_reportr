@@ -1,6 +1,6 @@
 Create a report from the given ADCP data.
 
-Create the virtualenv
+# Create the virtualenv
 
 ```bash
 virtualenv env
@@ -9,7 +9,19 @@ cd rti_python
 pip install -r requirements.txt
 ```
 
-Run the Application
+# Config.py
+Create a file config.py in the Frontend folder.
+```python
+class Config:
+
+    HOST = 'localhost'
+    PORT = '5432'
+    DBNAME = 'rti'
+    USER = 'test'
+    PW = '123456'
+```
+
+# Run the Application
 
 ```bash
 source backend\env\bin\activate

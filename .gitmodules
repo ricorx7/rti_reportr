@@ -3,4 +3,4 @@
 	url = https://github.com/ricorx7/rti_python
 [submodule "gmplot"]
 	path = gmplot
-	url = https://github.com:ricorx/ricorx7/gmplot
+	url = https://github.com:ricorx7/ricorx7/gmplot

@@ -135,3 +135,5 @@ projects.sqlite
 
 # HTML folder
 /html
+
+frontend/config.py
